@@ -9,6 +9,21 @@ from datetime import datetime
 import uuid
 import time
 
+# Get API key from environment
+groq_api_key = os.environ.get("GROQ_API_KEY")
+
+# Fallback to Streamlit secrets (for local development)  
+if not groq_api_key:
+    try:
+        groq_api_key = st.secrets["GROQ_API_KEY"]
+    except:
+        st.error("❌ Groq API key not found in environment variables or secrets!")
+        st.stop()  # Stop execution if no API key found
+
+# Now use the API key in your system initialization
+if 'rag_system' not in st.session_state:
+    st.session_state.rag_system = EnvironmentalRAGSystem(groq_api_key=groq_api_key)
+
 # ----------------- PAGE CONFIG -----------------
 st.set_page_config(
     page_title="Environmental Intelligence Platform - LangChain",
