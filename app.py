@@ -2,26 +2,26 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 from utils import EnvironmentalRAGSystem
 import os
-import re
-from collections import Counter
-import json
-from datetime import datetime, timedelta
+from datetime import datetime
 import uuid
+import time
 
-# Page config
+# ----------------- PAGE CONFIG -----------------
 st.set_page_config(
-    page_title="EcoRAG Intelligence Platform",
+    page_title="Environmental Intelligence Platform - LangChain",
     page_icon="🌿",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Enhanced CSS (keeping your beautiful styling)
+# ----------------- CUSTOM CSS -----------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Space+Grotesk:wght@700&display=swap');
+
 :root {
     --lite-green: #D8F3DC;
     --mid-green: #95D5B2;
@@ -37,107 +37,79 @@ st.markdown("""
     --error: #EF4444;
     --button-gradient: linear-gradient(90deg, #40916C 0%, #52B788 100%);
 }
+
 html, body, .stApp {
     background: linear-gradient(120deg, var(--lite-green) 0%, var(--mid-green) 80%);
     color: var(--text-main);
     font-family: 'Inter', sans-serif;
 }
+
 #MainMenu, footer, header {display:none;}
+
 .hero-header {
     background: var(--card-bg);
-    border-radius: 2.2rem;
+    border-radius: 2rem;
     margin: 2rem 0;
-    padding: 2.5rem 1.1rem;
+    padding: 2.5rem 1rem;
     box-shadow: var(--shadow);
     text-align: center;
-    animation: heroIn 1.1s cubic-bezier(.77,0,.23,1) both;
-    transition: box-shadow 0.35s;
+    animation: fadeIn 1s ease-in;
 }
-.hero-header:hover { box-shadow: 0 16px 48px rgba(45,106,79,0.18);}
-@keyframes heroIn {from{opacity:0;transform:translateY(-40px);}to{opacity:1;transform:translateY(0);}}
+
 .hero-title {
     font-family: 'Space Grotesk', sans-serif;
     font-weight: 700;
     font-size: 2.6rem;
     color: var(--dark-green);
     background: linear-gradient(90deg,var(--dark-green),var(--main-green),var(--accent-green));
-    -webkit-background-clip: text;-webkit-text-fill-color: transparent;background-clip:text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
-.hero-header:hover .hero-title {filter: brightness(1.11);}
-.hero-subtitle { color: var(--accent-green); font-size: 1.18rem; font-weight: 700; margin-bottom: 1.1rem;}
-.hero-description { color: var(--text-secondary); max-width:650px; margin:0 auto; font-size: 1.08rem;}
+
+.hero-subtitle {
+    color: var(--accent-green);
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+
+.hero-description {
+    color: var(--text-secondary);
+    max-width: 650px;
+    margin: 0 auto;
+    font-size: 1.1rem;
+}
 
 .glass-card {
-    background: var(--card-bg); border-radius: 1.6rem; box-shadow: var(--shadow);
-    margin: 2rem 0; padding: 2.1rem 1rem;
-    animation: fadeup 1s cubic-bezier(.77,0,.18,1.14) both;
-    transition: box-shadow 0.22s, transform 0.20s;
+    background: var(--card-bg);
+    border-radius: 1.5rem;
+    box-shadow: var(--shadow);
+    margin: 1.5rem 0;
+    padding: 2rem 1rem;
+    transition: transform 0.3s ease;
 }
-.glass-card:hover { box-shadow: 0 12px 32px rgba(45,106,79,0.23); transform: translateY(-5px) scale(1.008);}
-@keyframes fadeup {from{opacity:0;transform:translateY(22px);}to{opacity:1;transform:translateY(0);}}
-.section-header {
-    font-family:'Space Grotesk',sans-serif; font-size:1.6rem;font-weight:700;
-    color:var(--text-main);letter-spacing:-0.2px; text-align:center;
-    padding-top:0.4rem;padding-bottom:0.2rem;position:relative;
-    margin-bottom:1.7rem; transition: color 0.19s;
+
+.glass-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 32px rgba(45,106,79,0.18);
 }
-.section-header:hover { color: var(--main-green); }
-.section-header::after {
-    content:'';display:block;margin:10px auto 0 auto;width:80px; height:4px; border-radius:2.5px;
-    background:linear-gradient(90deg,var(--main-green),var(--accent-green),var(--lite-green));
-    opacity:0.6;transition: width 0.35s;
+
+.stButton>button {
+    background: var(--button-gradient) !important;
+    color: white !important;
+    font-weight: 700 !important;
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 6px 20px rgba(82,183,136,0.20) !important;
+    transition: all 0.3s ease;
+    padding: 0.8rem 2rem;
 }
-.section-header:hover::after{width:120px;opacity:0.9;}
-.stTabs [data-baseweb="tab-list"]{
-    background:var(--card-bg); border-radius:15px; box-shadow:0 2px 10px rgba(45,106,79,0.07);
-    padding: 7px 10px; margin-bottom:2.0rem;
+
+.stButton>button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px rgba(82,183,136,0.30) !important;
 }
-.stTabs [data-baseweb="tab"]{
-    color:var(--text-main); border-radius: 9px; font-weight:600;font-size:1rem;
-    background:transparent; transition: background 0.20s, color 0.18s;
-    margin: 0 4px; padding:11px 19px;
-}
-.stTabs [aria-selected="true"]{
-    background:var(--button-gradient); color:white !important; box-shadow:0 2px 12px rgba(82,183,136,0.16);
-}
-.stTabs [data-baseweb="tab"]:hover{
-    background:rgba(149,213,178, 0.13); color:var(--main-green);
-}
-.stButton>button{
-    background:var(--button-gradient)!important; color: #fff !important;
-    font-weight:700!important; border-radius:12px;
-    box-shadow:0 6px 20px rgba(82,183,136,0.20)!important;
-    font-size:1.05rem; border:none;
-    transition:all 0.2s; padding:.95rem 2.0rem; cursor:pointer;
-}
-.stButton>button:hover{
-    filter: brightness(1.10); transform: translateY(-3px) scale(1.02);
-    box-shadow:0 12px 30px rgba(82,183,136,0.30)!important;
-}
-.stTextInput>div>div>input{
-    background:rgba(255,255,255,0.94); border-radius:9px;
-    border:1.3px solid var(--accent-green); color:var(--text-main);
-    font-size:1.01rem; transition: box-shadow .18s;
-}
-.stTextInput>div>div>input:focus{
-    outline:2px solid var(--main-green); box-shadow:0 0 0 4px rgba(149,213,178,0.19);
-}
-[data-testid="metric-container"]{
-    background:var(--card-bg);border-radius:14px;box-shadow:0 2px 10px rgba(45,106,79,0.08);
-    padding:.7rem; margin:.35rem 0; transition:all .19s; cursor:pointer;
-}
-[data-testid="metric-container"]:hover{
-    box-shadow:0 6px 18px rgba(82,183,136,0.21); transform: translateY(-4px) scale(1.03);
-}
-[data-testid="metric-container"] [data-testid="metric-value"]{
-    color:var(--dark-green);font-size:1.55rem;font-weight:700;
-}
-[data-testid="metric-container"] [data-testid="metric-label"]{color:var(--accent-green);}
-.glass-footer{
-    background:var(--dark-green); color:white; padding:2rem 1rem;
-    border-radius:1.7rem; box-shadow:0 3px 13px rgba(45,106,79,0.10);
-    margin: 2.7rem 0 .5rem 0; text-align:center; font-size:1.08rem;
-}
+
 .chat-message {
     background: var(--card-bg);
     border-radius: 12px;
@@ -146,966 +118,1186 @@ html, body, .stApp {
     border-left: 4px solid var(--main-green);
     box-shadow: 0 2px 8px rgba(45,106,79,0.1);
 }
+
 .memory-highlight {
     background: linear-gradient(135deg, rgba(183, 228, 199, 0.3), rgba(149, 213, 178, 0.2));
     border: 1px solid var(--accent-green);
     border-radius: 8px;
-    padding: 0.8rem;
-    margin: 0.5rem 0;
-    font-style: italic;
-    color: var(--text-secondary);
-}
-.out-of-scope-warning {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05));
-    border: 2px solid var(--warning);
-    border-radius: 12px;
-    padding: 1.5rem;
+    padding: 1rem;
     margin: 1rem 0;
 }
-@media (max-width: 850px){
-    .hero-title{font-size:2.0rem;}
-    .glass-card{padding:1.5rem;}
+
+.similarity-score {
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 0.8rem;
+    margin: 0.5rem 0;
+    border: 1px solid var(--mid-green);
+}
+
+.environmental-detection {
+    background: linear-gradient(135deg, rgba(82, 183, 136, 0.1), rgba(149, 213, 178, 0.1));
+    border-radius: 10px;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-left: 4px solid var(--main-green);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.section-header {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-main);
+    text-align: center;
+    margin-bottom: 1.5rem;
+    position: relative;
+}
+
+.section-header::after {
+    content: '';
+    display: block;
+    margin: 10px auto 0;
+    width: 80px;
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--main-green), var(--accent-green));
+}
+
+[data-testid="metric-container"] {
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(45,106,79,0.08);
+    padding: 1rem;
+    margin: 0.5rem 0;
+}
+
+.stTabs [data-baseweb="tab-list"] {
+    background: var(--card-bg);
+    border-radius: 15px;
+    box-shadow: 0 2px 10px rgba(45,106,79,0.07);
+    padding: 7px 10px;
+    margin-bottom: 2rem;
+}
+
+.stTabs [data-baseweb="tab"] {
+    color: var(--text-main);
+    border-radius: 9px;
+    font-weight: 600;
+    background: transparent;
+    transition: all 0.3s ease;
+    margin: 0 4px;
+    padding: 11px 19px;
+}
+
+.stTabs [aria-selected="true"] {
+    background: var(--button-gradient);
+    color: white !important;
+    box-shadow: 0 2px 12px rgba(82,183,136,0.16);
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ========== ENHANCED CONVERSATIONAL MEMORY SYSTEM ==========
+# ----------------- SESSION STATE MANAGEMENT -----------------
+def initialize_session_state():
+    """Initialize all session state variables with proper defaults"""
+    if "session_id" not in st.session_state:
+        st.session_state.session_id = str(uuid.uuid4())
+    
+    if "rag_system" not in st.session_state:
+        st.session_state.rag_system = None
+    
+    if "conversation_history" not in st.session_state:
+        st.session_state.conversation_history = []
+    
+    if "system_initialized" not in st.session_state:
+        st.session_state.system_initialized = False
+    
+    if "last_search_results" not in st.session_state:
+        st.session_state.last_search_results = None
+    
+    if "processing_stats" not in st.session_state:
+        st.session_state.processing_stats = {}
+    
+    if "chat_counter" not in st.session_state:
+        st.session_state.chat_counter = 0
+    
+    if "search_counter" not in st.session_state:
+        st.session_state.search_counter = 0
 
-class SmartConversationalMemory:
-    """Advanced conversational memory that works like ChatGPT/Gemini"""
-    
-    def __init__(self):
-        # Environmental keywords for classification
-        self.environmental_keywords = {
-            'impact', 'environmental', 'pollution', 'air quality', 'water quality', 'soil', 
-            'emission', 'waste', 'carbon', 'greenhouse', 'climate', 'ecosystem', 'biodiversity',
-            'contamination', 'toxic', 'hazardous', 'sustainability', 'renewable', 'conservation',
-            'mitigation', 'assessment', 'monitoring', 'remediation', 'restoration', 'protection',
-            'noise', 'dust', 'particulate', 'pm2.5', 'pm10', 'co2', 'methane', 'nitrogen',
-            'sulfur', 'ozone', 'chemical', 'biological', 'ecological', 'flora', 'fauna',
-            'wetland', 'forest', 'marine', 'aquatic', 'terrestrial', 'groundwater', 'surface water',
-            'discharge', 'runoff', 'leachate', 'effluent', 'ambient', 'baseline', 'threshold',
-            'standards', 'regulations', 'compliance', 'permit', 'license', 'eia', 'eis', 'erosion'
-        }
-        
-        # Memory reference keywords - expanded for better detection
-        self.memory_keywords = {
-            'last query', 'previous question', 'what did i ask', 'my last question', 
-            'before', 'earlier', 'previously', 'what i asked', 'my previous query',
-            'last time', 'what was my', 'remember', 'recall', 'what i said',
-            'my last', 'last question', 'previous query', 'what did i say'
-        }
-    
-    def is_environmental_query(self, query):
-        """Check if query is environmental-related"""
-        if not query:
-            return False
-        
-        query_lower = query.lower().strip()
-        query_words = set(re.findall(r'\b\w+\b', query_lower))
-        
-        # Greetings and casual conversation
-        casual_patterns = ['hi', 'hello', 'hey', 'good morning', 'good evening', 'thank you', 'thanks', 'bye']
-        if any(pattern in query_lower for pattern in casual_patterns) and len(query_words) <= 3:
-            return False
-        
-        # Check for environmental keywords
-        env_score = len(query_words.intersection(self.environmental_keywords))
-        return env_score > 0 or len(query_words) > 5  # Assume longer queries might be environmental
-    
-    def is_memory_query(self, query):
-        """Enhanced detection for memory queries"""
-        if not query:
-            return False
-        
-        query_lower = query.lower().strip()
-        
-        # Direct patterns for memory queries
-        memory_patterns = [
-            r'\b(what|tell me)\s+(was|is)\s+(my|the)\s+(last|previous)\s+(query|question)',
-            r'\b(my|the)\s+(last|previous)\s+(query|question)',
-            r'\bwhat\s+did\s+i\s+(ask|say)',
-            r'\bwhat\s+was\s+my\s+last',
-            r'\bprevious\s+(question|query)',
-            r'\blast\s+(query|question)',
-            r'\bremember\s+my',
-            r'\brecall\s+my'
-        ]
-        
-        for pattern in memory_patterns:
-            if re.search(pattern, query_lower):
-                return True
-                
-        return any(keyword in query_lower for keyword in self.memory_keywords)
-    
-    def add_to_memory(self, query, response):
-        """Add conversation to session memory with enhanced tracking"""
-        if 'conversation_memory' not in st.session_state:
-            st.session_state.conversation_memory = []
-        
-        # Keep only last 15 conversations to avoid memory bloat
-        if len(st.session_state.conversation_memory) >= 15:
-            st.session_state.conversation_memory = st.session_state.conversation_memory[-14:]
-        
-        conversation_entry = {
-            'query': query,
-            'response': response,
-            'timestamp': datetime.now(),
-            'is_environmental': self.is_environmental_query(query),
-            'is_memory_query': self.is_memory_query(query)
-        }
-        
-        st.session_state.conversation_memory.append(conversation_entry)
-    
-    def get_last_environmental_query(self):
-        """Get the last environmental query (not memory query)"""
-        memory = st.session_state.get('conversation_memory', [])
-        if not memory:
-            return None
-        
-        # Look for the last environmental query that wasn't a memory query
-        for conv in reversed(memory):
-            if conv['is_environmental'] and not conv['is_memory_query']:
-                return conv['query']
-        
-        return None
-    
-    def get_conversation_context(self, current_query, limit=3):
-        """Get recent conversation context for better responses"""
-        memory = st.session_state.get('conversation_memory', [])
-        if not memory:
-            return []
-        
-        # Return last few environmental conversations for context
-        env_conversations = []
-        for conv in reversed(memory):
-            if conv['is_environmental'] and not conv['is_memory_query']:
-                env_conversations.append(conv)
-                if len(env_conversations) >= limit:
-                    break
-        
-        return list(reversed(env_conversations))
+# Initialize session state
+initialize_session_state()
 
-# F1 Score function
-def calculate_f1_score_builtin(predicted, reference):
-    """Calculate F1 score between predicted and reference text"""
-    if not predicted or not reference:
-        return 0.0
+# ----------------- HELPER FUNCTIONS -----------------
+def display_environmental_detection(query, is_env, category, confidence):
+    """Display environmental query detection results with enhanced visualization"""
+    detection_color = "var(--success)" if is_env else "var(--error)"
+    confidence_bar_width = min(100, confidence * 100)
     
-    def tokenize(text):
-        return re.findall(r'\b\w+\b', text.lower())
-    
-    pred_tokens = tokenize(predicted)
-    ref_tokens = tokenize(reference)
-    
-    if not pred_tokens or not ref_tokens:
-        return 0.0
-    
-    pred_counter = Counter(pred_tokens)
-    ref_counter = Counter(ref_tokens)
-    
-    tp = sum((pred_counter & ref_counter).values())
-    precision = tp / len(pred_tokens) if pred_tokens else 0
-    recall = tp / len(ref_tokens) if ref_tokens else 0
-    
-    if precision + recall == 0:
-        return 0.0
-    
-    f1 = 2 * (precision * recall) / (precision + recall)
-    return f1
+    st.markdown(f"""
+    <div class="environmental-detection">
+        <h4 style="color: {detection_color}; margin-bottom: 0.5rem;">
+            🔍 Enhanced Environmental Query Detection
+        </h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div>
+                <strong>Status:</strong> 
+                <span style="color: {detection_color};">
+                    {"✅ Environmental Topic" if is_env else "❌ Non-Environmental"}
+                </span>
+            </div>
+            <div>
+                <strong>Category:</strong> 
+                <span style="color: var(--text-secondary);">{category.replace('_', ' ').title()}</span>
+            </div>
+            <div>
+                <strong>Confidence:</strong> 
+                <span style="color: var(--text-secondary);">{confidence:.3f}</span>
+            </div>
+        </div>
+        <div style="background: #e0e0e0; border-radius: 10px; height: 10px; margin: 5px 0;">
+            <div style="background: {detection_color}; height: 100%; width: {confidence_bar_width}%; border-radius: 10px; transition: width 0.5s ease;"></div>
+        </div>
+        <small style="color: var(--text-secondary);">Advanced AI detection with environmental domain expertise</small>
+    </div>
+    """, unsafe_allow_html=True)
 
-# ENHANCED RESPONSE GENERATION WITH SMART MEMORY
-def generate_chatgpt_like_response(env_rag, query, memory_system):
-    """Generate ChatGPT-like responses with smart memory handling"""
+def display_similarity_scores(search_results):
+    """Display search results with real similarity scores and enhanced visualization"""
+    if "error" in search_results:
+        st.error(f"🔍 Search Error: {search_results['error']}")
+        return
     
-    # First, check if it's a memory query
-    if memory_system.is_memory_query(query):
-        last_env_query = memory_system.get_last_environmental_query()
+    if not search_results.get("chunks"):
+        st.warning("🔍 No relevant documents found for your query.")
+        return
+    
+    st.markdown("### 📋 Search Results with Real Similarity Scores")
+    
+    # Display comprehensive search metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("⏱️ Retrieval Time", f"{search_results['retrieval_time']:.3f}s")
+    with col2:
+        st.metric("📊 Results Found", len(search_results["chunks"]))
+    with col3:
+        score_type = "🎯 Real Qdrant Scores" if search_results.get("has_real_scores") else "📊 Estimated Scores"
+        st.metric("🔢 Score Type", score_type)
+    with col4:
+        if search_results.get("scores"):
+            avg_score = np.mean(search_results["scores"])
+            st.metric("📈 Avg Similarity", f"{avg_score:.3f}")
+    
+    # Display each result with enhanced similarity visualization
+    for i, (chunk, score, metadata) in enumerate(zip(
+        search_results["chunks"], 
+        search_results["scores"], 
+        search_results["metadata"]
+    )):
+        # Dynamic color coding based on similarity score
+        if score > 0.8:
+            score_color = "#2E8B57"  # Forest Green
+            score_grade = "Excellent"
+        elif score > 0.6:
+            score_color = "#32CD32"  # Lime Green
+            score_grade = "Good"
+        elif score > 0.4:
+            score_color = "#DAA520"  # Goldenrod
+            score_grade = "Fair"
+        else:
+            score_color = "#DC143C"  # Crimson
+            score_grade = "Poor"
         
-        if not last_env_query:
-            return """🧠 **Memory Recall**: I don't have any previous environmental questions in our conversation yet. 
-
-Please ask me something about environmental topics like:
-• Air quality impacts
-• Water quality and contamination
-• Soil erosion and impacts
-• Environmental assessments
-• Climate and emissions
-
-Once you ask an environmental question, I'll remember it and can reference it later!"""
+        score_percentage = min(100, score * 100)
         
-        # THIS IS THE KEY FIX: Process the last query through RAG system
-        try:
-            # Get search results for the last environmental query
-            search_results = env_rag.search_environmental_reports(last_env_query, 3)
+        with st.expander(f"📄 Result {i+1} - Similarity: {score:.4f} ({score_grade})", expanded=(i==0)):
+            # Enhanced similarity score visualization
+            st.markdown(f"""
+            <div class="similarity-score">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                    <div>
+                        <strong>🎯 Similarity Score:</strong>
+                        <span style="color: {score_color}; font-weight: bold; font-size: 1.2rem;">{score:.4f}</span>
+                    </div>
+                    <div>
+                        <span style="color: {score_color}; font-weight: bold; background: rgba(82, 183, 136, 0.1); padding: 0.2rem 0.5rem; border-radius: 5px;">
+                            {score_grade} Match
+                        </span>
+                    </div>
+                </div>
+                <div style="background-color: #e0e0e0; border-radius: 15px; height: 15px; position: relative; overflow: hidden;">
+                    <div style="background: linear-gradient(90deg, {score_color}, {score_color}aa); height: 100%; width: {score_percentage}%; border-radius: 15px; transition: width 0.8s ease;"></div>
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.8rem; font-weight: bold; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">
+                        {score_percentage:.1f}%
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
-            if search_results.get('chunks'):
-                # Generate fresh answer for the last query
-                fresh_answer = env_rag.generate_smart_response(last_env_query, search_results['chunks'])
-                
-                # Format response like ChatGPT
-                return f"""🧠 **Memory Recall**: Your last question was: **"{last_env_query}"**
-
-Here's the answer to that question:
-
-{fresh_answer}
-
-Would you like me to elaborate on any specific aspect of this topic?"""
+            # Enhanced metadata information
+            if metadata:
+                col_meta1, col_meta2 = st.columns(2)
+                with col_meta1:
+                    st.write(f"📁 **Source Document:** {metadata.get('document', 'Unknown')}")
+                    st.write(f"🏷️ **Topic Category:** {metadata.get('topic', 'Unknown')}")
+                with col_meta2:
+                    if 'chunk_length' in metadata:
+                        st.write(f"📏 **Content Length:** {metadata['chunk_length']} characters")
+                    if 'chunk_index' in metadata:
+                        st.write(f"🔢 **Chunk Index:** {metadata['chunk_index']}")
             
-            else:
-                return f"""🧠 **Memory Recall**: Your last question was: **"{last_env_query}"**
+            # Enhanced content display with better formatting
+            st.markdown("**📝 Document Content:**")
+            st.text_area(
+                "Full Content", 
+                value=chunk, 
+                height=120, 
+                key=f"chunk_display_{i}_{st.session_state.search_counter}",
+                label_visibility="collapsed"
+            )
 
-However, I couldn't find specific information about this topic in the current environmental documents. You might want to rephrase the question with more specific environmental terms.
-
-Would you like to ask about related environmental topics?"""
-                
-        except Exception as e:
-            return f"""🧠 **Memory Recall**: Your last question was: **"{last_env_query}"**
-
-I remember your question, but encountered an issue generating a fresh answer. Please try asking the question again or rephrase it.
-
-Error details: {str(e)}"""
+def display_advanced_memory_interaction():
+    """Display advanced conversation memory like ChatGPT/Gemini"""
+    if not st.session_state.rag_system or not st.session_state.rag_system.conversation_memory.conversations:
+        return
     
-    # Check if environmental query
-    if not memory_system.is_environmental_query(query):
-        return f"""I'm specifically designed to answer questions about environmental impact assessments and related environmental topics.
-
-Your query "{query}" appears to be outside my environmental expertise area.
-
-I can help you with questions about:
-• Environmental impact assessments
-• Air quality and pollution
-• Water quality and contamination  
-• Soil erosion and impacts
-• Noise pollution studies
-• Waste management
-• Carbon emissions and climate effects
-• Environmental monitoring and compliance
-
-Please ask me something related to environmental topics, and I'll be happy to help!"""
+    conversations = st.session_state.rag_system.conversation_memory.conversations
     
-    # For environmental queries, perform RAG search and generate response
-    try:
-        search_results = env_rag.search_environmental_reports(query, 3)
+    st.markdown("### 🧠 Advanced Conversation Memory (ChatGPT-like)")
+    
+    # Memory stats
+    col_mem1, col_mem2, col_mem3, col_mem4 = st.columns(4)
+    with col_mem1:
+        st.metric("💬 Total Turns", len(conversations))
+    with col_mem2:
+        recent_env_count = sum(1 for conv in conversations[-5:] if conv.get('context_info', {}).get('is_environmental', True))
+        st.metric("🌱 Recent Environmental", recent_env_count)
+    with col_mem3:
+        avg_response_length = np.mean([len(conv['assistant_response'].split()) for conv in conversations])
+        st.metric("📝 Avg Response", f"{avg_response_length:.0f} words")
+    with col_mem4:
+        unique_categories = len(set(conv.get('context_info', {}).get('category', 'unknown') for conv in conversations))
+        st.metric("🗂️ Topic Categories", unique_categories)
+    
+    # Display recent conversations with enhanced formatting
+    st.markdown("#### 📜 Recent Conversation History")
+    
+    for i, conv in enumerate(conversations[-3:], 1):
+        timestamp = conv['timestamp'].strftime("%H:%M:%S")
+        context_info = conv.get('context_info', {})
+        is_env = context_info.get('is_environmental', True)
+        category = context_info.get('category', 'unknown')
+        confidence = context_info.get('confidence', 0.0)
         
-        if not search_results.get('chunks'):
-            # Get conversation context for better guidance
-            context = memory_system.get_conversation_context(query, 2)
-            context_note = ""
-            if context:
-                recent_topics = [conv['query'][:50] + "..." for conv in context]
-                context_note = f"\n\n💭 *Based on our recent discussion about: {', '.join(recent_topics)}*"
+        with st.expander(f"💬 Turn {conv['turn_number']} - {timestamp} - {category.title()}", expanded=(i==len(conversations[-3:]))):
+            st.markdown(f"**🧑 You:** {conv['user_input']}")
+            st.markdown(f"**🤖 Assistant:** {conv['assistant_response'][:200]}{'...' if len(conv['assistant_response']) > 200 else ''}")
             
-            return f"""I couldn't find specific information about "{query}" in the available environmental impact assessment documents.
+            # Show detection info
+            detection_color = "green" if is_env else "red"
+            st.markdown(f"""
+            <div style="background: rgba(82, 183, 136, 0.1); padding: 0.5rem; border-radius: 5px; margin: 0.5rem 0;">
+                <small>
+                    🔍 <strong>Detection:</strong> <span style="color: {detection_color};">
+                    {'Environmental' if is_env else 'Non-Environmental'}</span> | 
+                    <strong>Category:</strong> {category} | 
+                    <strong>Confidence:</strong> {confidence:.2f}
+                </small>
+            </div>
+            """, unsafe_allow_html=True)
 
-This could mean:
-• The topic isn't covered in the current document set
-• You might need to rephrase your question with more specific environmental terms
-• The information might be in a different section or document
-
-Please try rephrasing your question with more specific environmental terms, or ask about topics like:
-• Air quality impacts and monitoring
-• Water quality effects and treatment
-• Soil contamination and erosion control
-• Noise pollution studies
-• Waste management practices
-• Environmental compliance standards{context_note}"""
-        
-        # Generate comprehensive response
-        base_response = env_rag.generate_smart_response(query, search_results['chunks'])
-        
-        # Add conversational context if available
-        context = memory_system.get_conversation_context(query, 2)
-        if context and len(context) > 0:
-            recent_topic = context[0]['query'][:60]
-            context_note = f"\n\n💭 *This builds on our earlier discussion about: {recent_topic}...*"
-            return base_response + context_note
-        
-        return base_response
-        
-    except Exception as e:
-        return f"""I encountered an issue while processing your environmental query: "{query}"
-
-Please try:
-• Rephrasing your question with simpler terms
-• Being more specific about the environmental aspect you're interested in
-• Asking about a different environmental topic
-
-Error: {str(e)}"""
-
-# Initialize smart conversational memory
-if 'smart_conv_memory' not in st.session_state:
-    st.session_state.smart_conv_memory = SmartConversationalMemory()
-
-smart_memory = st.session_state.smart_conv_memory
-
-# Hero Section
+# ----------------- HERO SECTION -----------------
 st.markdown("""
 <div class="hero-header">
     <div class="hero-title">Environmental Intelligence Platform</div>
-    <div class="hero-subtitle">ChatGPT-like Conversational Memory</div>
+    <div class="hero-subtitle">Enhanced LangChain + MLflow Powered ChatGPT-like Memory</div>
     <div class="hero-description">
-        Advanced system with human-like conversational memory, environmental query detection, BGE embeddings, Qdrant vector database, and intelligent responses that remember and process your previous questions.
+        Advanced system with LangChain framework integration, MLflow experiment tracking, human-like conversational memory, 
+        environmental query detection, BGE embeddings, Qdrant vector database, real similarity scores, and intelligent responses.
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# RAG System Initialization
-GROQ_API_KEY = (
-    st.secrets.get("GROQ_API_KEY", None)
-    or os.environ.get("GROQ_API_KEY", "")
-)
-
-@st.cache_resource
-def initialize_rag_system():
-    return EnvironmentalRAGSystem(docs_path="docs/", groq_api_key=GROQ_API_KEY)
-
-if "rag_system" not in st.session_state:
-    st.session_state.rag_system = initialize_rag_system()
-env_rag = st.session_state.rag_system
-
-# Initialize session state variables
-if "last_query" not in st.session_state:
-    st.session_state.last_query = None
-if "last_response" not in st.session_state:
-    st.session_state.last_response = None
-if "last_search_results" not in st.session_state:
-    st.session_state.last_search_results = None
-
-# Navigation Tabs
+# ----------------- TABS -----------------
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🏗️ System Setup", "🔍 Smart Search", "🤖 AI Chat", "📊 Evaluation", "📈 Analytics"
+    "🏗️ System Setup", "🔍 Document Search", "💬 AI Chat", "📊 Evaluation", "📈 Analytics"
 ])
 
-# ========== TAB 1: SYSTEM SETUP ==========
+# ==================== TAB 1: SYSTEM SETUP ====================
 with tab1:
-    st.markdown('<div class="section-header">System Configuration</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Enhanced LangChain + MLflow System Configuration</div>', unsafe_allow_html=True)
     
     st.markdown("""
     <div class="glass-card">
-        <h3 style="color: var(--text-main);margin-bottom: 1.5rem;font-weight: 700;">🔧 Technical Architecture</h3>
+        <h3 style="color: var(--text-main); margin-bottom: 1.5rem;">🦜 Enhanced LangChain + MLflow Architecture</h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem;">
             <div>
-                <h4 style="color: var(--main-green); margin-bottom: 1rem;">📚 Data Processing</h4>
-                <ul style="color:var(--text-secondary);line-height:1.6;">
-                    <li><strong>Documents:</strong> Environmental Impact Reports</li>
-                    <li><strong>Format:</strong> PDF processing pipeline</li>
-                    <li><strong>Chunking:</strong> Intelligent paragraph segmentation</li>
+                <h4 style="color: var(--main-green);">🦜 LangChain Components</h4>
+                <ul style="color: var(--text-secondary); line-height: 1.6;">
+                    <li><strong>LLM:</strong> ChatGroq (Llama3-8B-8192)</li>
+                    <li><strong>Embeddings:</strong> BGE-base-en-v1.5</li>
+                    <li><strong>Memory:</strong> ConversationBufferWindow</li>
+                    <li><strong>Chain:</strong> ConversationalRetrievalChain</li>
+                    <li><strong>Vector Store:</strong> QdrantVectorStore</li>
                 </ul>
             </div>
             <div>
-                <h4 style="color: var(--main-green); margin-bottom: 1rem;">🧠 AI Technology</h4>
-                <ul style="color:var(--text-secondary);line-height:1.6;">
-                    <li><strong>Embeddings:</strong> BGE-base-en-v1.5 (768-dim)</li>
-                    <li><strong>Vector DB:</strong> Qdrant (cosine similarity)</li>
-                    <li><strong>LLM:</strong> Groq Llama-3.1-8b-instant</li>
+                <h4 style="color: var(--main-green);">🔬 MLflow Tracking</h4>
+                <ul style="color: var(--text-secondary); line-height: 1.6;">
+                    <li><strong>Experiments:</strong> Environmental_RAG_System</li>
+                    <li><strong>Metrics:</strong> F1-scores, similarity scores</li>
+                    <li><strong>Parameters:</strong> Model configs, retrieval settings</li>
+                    <li><strong>Nested Runs:</strong> Search and response tracking</li>
                 </ul>
             </div>
             <div>
-                <h4 style="color: var(--main-green); margin-bottom: 1rem;">💬 ChatGPT-like Features</h4>
-                <ul style="color:var(--text-secondary);line-height:1.6;">
-                    <li><strong>Memory:</strong> Smart conversational recall</li>
-                    <li><strong>Processing:</strong> Remembers & answers previous queries</li>
-                    <li><strong>Scope:</strong> Environmental focus with smart filtering</li>
+                <h4 style="color: var(--main-green);">🧠 Enhanced Features</h4>
+                <ul style="color: var(--text-secondary); line-height: 1.6;">
+                    <li><strong>Memory:</strong> ChatGPT-like conversation recall</li>
+                    <li><strong>Detection:</strong> Environmental query classification</li>
+                    <li><strong>Scores:</strong> Real similarity scores from Qdrant</li>
+                    <li><strong>Knowledge:</strong> Built-in environmental expertise</li>
                 </ul>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # System Status
-    if env_rag.groq_working:
-        st.success("🚀 **Groq AI Enhancement: ACTIVE** - Advanced language model operational")
-    else:
-        st.info("📝 **Template Response Mode: ACTIVE** - Fallback system operational")
-    
-    # Memory Status
-    memory_count = len(st.session_state.get('conversation_memory', []))
-    st.info(f"💬 **ChatGPT-like Memory: ACTIVE** - {memory_count} conversations remembered")
-    
-    # Initialize Button
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🚀 Initialize Environmental System", type="primary", use_container_width=True):
-            with st.container():
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                try:
-                    for update in env_rag.process_documents_realtime():
-                        progress_bar.progress(int(update["progress"]))
-                        status_text.info(f"**{update['step'].title()}**: {update['status']}")
-                        
-                        if update["step"] == "error":
-                            st.error(f"❌ {update['status']}")
-                            break
-                        
-                        if update["step"] == "complete":
-                            st.success("✅ **System Initialization Complete** - Platform ready for ChatGPT-like environmental conversations!")
-                            
-                            stats = update.get("stats", {})
-                            col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-                            with col_stat1:
-                                st.metric("📄 Documents", stats.get("documents_processed", 0))
-                            with col_stat2:
-                                st.metric("📝 Chunks", stats.get("total_chunks", 0))
-                            with col_stat3:
-                                st.metric("⏱️ Time", f"{stats.get('total_time', 0):.1f}s")
-                            with col_stat4:
-                                st.metric("📊 Avg/Doc", f"{stats.get('avg_chunks_per_doc', 0):.1f}")
-                            break
-                except Exception as e:
-                    st.error(f"❌ Initialization failed: {str(e)}")
-
-# ========== TAB 2: SMART SEARCH ==========
-with tab2:
-    st.markdown('<div class="section-header">Smart Search Engine</div>', unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="glass-card">
-        <h3 style="color: var(--text-main); margin-bottom: 1rem;">🔍 Intelligent Environmental Document Search</h3>
-        <p style="color: var(--text-secondary); margin-bottom: 0;">
-            Search with automatic environmental scope detection and conversational memory
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
+    # API Key input and testing
     col1, col2 = st.columns([3, 1])
     with col1:
-        query = st.text_input(
-            "🔍 Search Query",
-            placeholder="What are the air quality impacts?",
-            help="I remember our conversation - try asking about previous queries later!"
+        groq_api_key = st.text_input(
+            "🔑 Groq API Key",
+            type="password",
+            value=st.secrets.get("GROQ_API_KEY", "") if hasattr(st, 'secrets') else "",
+            help="Enter your Groq API key for enhanced LangChain LLM integration"
         )
     with col2:
-        k_results = st.slider("Results", 1, 10, 5)
-        search_button = st.button("🔍 Search", type="primary", use_container_width=True)
+        st.write("")
+        st.write("")
+        if st.button("🧪 Test API Key", use_container_width=True):
+            if groq_api_key:
+                try:
+                    with st.spinner("Testing API connection..."):
+                        test_system = EnvironmentalRAGSystem(groq_api_key=groq_api_key)
+                        if test_system.groq_working:
+                            st.success("✅ API Key valid! LangChain + Groq ready.")
+                        else:
+                            st.warning("⚠️ API Key valid but connection issues detected.")
+                        test_system.end_mlflow_run()  # Clean up test run
+                except Exception as e:
+                    st.error(f"❌ API Key test failed: {str(e)}")
+            else:
+                st.error("❌ Please enter an API key first!")
     
-    if search_button and query:
-        # Store query for evaluation
-        st.session_state.last_query = query
+    # System initialization
+    st.markdown("### 🚀 System Initialization")
+    
+    if st.session_state.system_initialized:
+        st.success("✅ **Enhanced System Already Initialized and Ready!**")
         
-        with st.spinner("Searching with conversational context..."):
-            try:
-                # Use the enhanced response system
-                response = generate_chatgpt_like_response(env_rag, query, smart_memory)
-                
-                # Add to memory
-                smart_memory.add_to_memory(query, response)
-                
-                # For environmental queries that aren't memory queries, also show search results
-                if (smart_memory.is_environmental_query(query) and 
-                    not smart_memory.is_memory_query(query)):
-                    
-                    search_results = env_rag.search_environmental_reports(query, k_results)
-                    st.session_state.last_search_results = search_results
-                    
-                    if search_results.get("chunks"):
-                        # Display metrics
-                        col_metric1, col_metric2, col_metric3 = st.columns(3)
-                        with col_metric1:
-                            st.metric("⚡ Retrieval Time", f"{search_results['retrieval_time']:.4f}s")
-                        with col_metric2:
-                            st.metric("📄 Results Found", len(search_results['chunks']))
-                        with col_metric3:
-                            st.metric("🎯 Avg Similarity", f"{np.mean(search_results['scores']):.3f}")
-                        
-                        st.success(f"✅ Found {len(search_results['chunks'])} relevant environmental passages")
-                        
-                        # Display results
-                        for i, (chunk, score, meta) in enumerate(zip(
-                            search_results['chunks'], search_results['scores'], search_results['metadata']
-                        )):
-                            with st.expander(f"📄 Result {i+1}: {meta.get('topic', 'Unknown')} (Score: {score:.3f})", expanded=i==0):
-                                st.markdown(f"**Document:** {meta.get('document', 'Unknown')}")
-                                st.markdown(f"**Topic:** {meta.get('topic', 'Unknown')}")
-                                st.markdown(f"**Chunk ID:** {meta.get('chunk_id', 'Unknown')}")
-                                st.write(chunk)
-                
-                # Display response
-                st.markdown("""
-                <div class="chat-message">
-                    <strong>🤖 Assistant:</strong>
-                </div>
-                """, unsafe_allow_html=True)
-                st.write(response)
-                        
-            except Exception as e:
-                st.error(f"❌ Search failed: {str(e)}")
-
-# ========== TAB 3: AI CHAT WITH CHATGPT-LIKE MEMORY ==========
-with tab3:
-    st.markdown('<div class="section-header">AI Environmental Chat</div>', unsafe_allow_html=True)
-    
-    # Status Display
-    if env_rag.groq_working:
-        st.success("🚀 **AI-Enhanced Chat Mode** - ChatGPT-like Memory with Groq Llama-3.1-8b-instant")
-    else:
-        st.info("📝 **Template Chat Mode** - ChatGPT-like Memory with advanced pattern matching")
-    
-    st.markdown("""
-    <div class="glass-card">
-        <h3 style="color: var(--text-main); margin-bottom: 1rem;">🤖 ChatGPT-like Environmental Chat</h3>
-        <p style="color: var(--text-secondary);">
-            Have natural conversations about environmental topics. I remember our chat history and can recall & re-answer your previous questions just like ChatGPT!
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Show conversation history in a more ChatGPT-like format
-    memory = st.session_state.get('conversation_memory', [])
-    if memory:
-        st.markdown("### 💬 Recent Conversation")
-        for i, conv in enumerate(memory[-4:]):  # Show last 4 conversations
-            time_str = conv['timestamp'].strftime("%H:%M")
-            is_env = "🌿" if conv['is_environmental'] else "❓"
-            is_mem = "🧠" if conv['is_memory_query'] else ""
+        # Display system status
+        if st.session_state.rag_system:
+            status = st.session_state.rag_system.get_system_status()
             
-            st.markdown(f"""
-            <div class="chat-message">
-                <small style="color: var(--text-secondary);">{time_str} {is_env} {is_mem}</small><br>
-                <strong>You:</strong> {conv['query']}<br>
-                <strong>Assistant:</strong> {conv['response'][:180]}{'...' if len(conv['response']) > 180 else ''}
-            </div>
-            """, unsafe_allow_html=True)
-    
-    # Example queries to help users understand the memory feature
-    st.markdown("""
-    <div class="memory-highlight">
-        <strong>💡 Try these memory commands:</strong><br>
-        • "What was my last query?" - I'll show and re-answer your last question<br>
-        • "What did I ask before?" - I'll recall your previous environmental question<br>
-        • Ask any environmental question, then later ask about it!
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Chat input
-    col1, col2 = st.columns([4, 1])
-    with col1:
-        chat_query = st.text_input(
-            "💬 Ask me anything about environmental topics",
-            placeholder="What is soil erosion? (Later try: 'what was my last query?')",
-            help="I work like ChatGPT - I remember our conversation and can re-answer previous questions!",
-            key="chat_input"
-        )
-    with col2:
-        st.write("")  # Spacing
-        st.write("")  # Spacing
-        chat_button = st.button("💬 Send", type="primary", use_container_width=True)
-    
-    if chat_button and chat_query:
-        # Store query for evaluation
-        st.session_state.last_query = chat_query
+            col_status1, col_status2, col_status3, col_status4, col_status5 = st.columns(5)
+            with col_status1:
+                st.metric("📄 Documents", status['documents_loaded'])
+            with col_status2:
+                st.metric("📝 Chunks", status['chunks_created'])
+            with col_status3:
+                st.metric("🧠 LangChain Memory", status['memory_messages'])
+            with col_status4:
+                st.metric("💬 Conversation Memory", status['conversation_memory_turns'])
+            with col_status5:
+                connection_status = "🟢 Connected" if status['groq_connected'] else "🟡 Template"
+                st.metric("🤖 AI Status", connection_status)
         
-        with st.spinner("Thinking with ChatGPT-like memory..."):
-            try:
-                # Generate ChatGPT-like response
-                response = generate_chatgpt_like_response(env_rag, chat_query, smart_memory)
-                st.session_state.last_response = response
-                
-                # For environmental queries that aren't memory queries, get search results for evaluation
-                if (smart_memory.is_environmental_query(chat_query) and 
-                    not smart_memory.is_memory_query(chat_query)):
-                    search_results = env_rag.search_environmental_reports(chat_query, 3)
-                    st.session_state.last_search_results = search_results
-                else:
-                    st.session_state.last_search_results = {"chunks": []}  # Empty for memory/non-env queries
-                
-                # Add to conversational memory
-                smart_memory.add_to_memory(chat_query, response)
-                
-                # Display the chat response
-                st.markdown("""
-                <div class="glass-card">
-                    <h4 style="color: var(--text-main); margin-bottom: 1rem;">🤖 Assistant Response</h4>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.markdown(f"**You:** {chat_query}")
-                
-                # Show response type
-                if smart_memory.is_memory_query(chat_query):
-                    st.info("🧠 **Memory Recall & Processing** - Remembering and re-answering your previous question")
-                elif smart_memory.is_environmental_query(chat_query):
-                    if env_rag.groq_working:
-                        st.success("🚀 **AI-Enhanced Environmental Response**")
-                    else:
-                        st.info("📝 **Template Environmental Response**")
-                else:
-                    st.warning("⚠️ **Query outside environmental scope**")
-                
-                st.markdown("**Assistant:**")
-                st.write(response)
-                
-                # Show source documents for fresh environmental queries
-                if (smart_memory.is_environmental_query(chat_query) and 
-                    not smart_memory.is_memory_query(chat_query) and
-                    st.session_state.last_search_results.get('chunks')):
-                    st.markdown("### 📚 Source Documents")
-                    search_results = st.session_state.last_search_results
-                    for i, (chunk, meta) in enumerate(zip(search_results['chunks'], search_results['metadata'])):
-                        with st.expander(f"📖 Source {i+1}: {meta.get('topic', 'Unknown')}"):
-                            st.markdown(f"**Document:** {meta.get('document', 'Unknown')}")
-                            st.write(chunk[:400] + "..." if len(chunk) > 400 else chunk)
-                
-            except Exception as e:
-                st.error(f"❌ Chat response failed: {str(e)}")
+        # Re-initialize option
+        if st.button("🔄 Re-initialize System", type="secondary"):
+            st.session_state.system_initialized = False
+            st.session_state.rag_system = None
+            st.session_state.conversation_history = []
+            st.rerun()
     
-    # Quick memory test buttons
-    if memory:
-        st.markdown("### 🧠 Quick Memory Tests")
-        col_mem1, col_mem2, col_mem3 = st.columns(3)
-        with col_mem1:
-            if st.button("What was my last query?"):
-                last_env_q = smart_memory.get_last_environmental_query()
-                if last_env_q:
-                    # Trigger the memory system just like a regular chat
-                    response = generate_chatgpt_like_response(env_rag, "what was my last query?", smart_memory)
-                    smart_memory.add_to_memory("what was my last query?", response)
-                    st.markdown("**🤖 Assistant:**")
-                    st.write(response)
-                else:
-                    st.info("No previous environmental questions found.")
-        
-        with col_mem2:
-            if st.button("Previous question?"):
-                response = generate_chatgpt_like_response(env_rag, "what did I ask before?", smart_memory)
-                smart_memory.add_to_memory("what did I ask before?", response)
-                st.markdown("**🤖 Assistant:**")
-                st.write(response)
-        
-        with col_mem3:
-            if st.button("🗑️ Clear Chat History"):
-                st.session_state.conversation_memory = []
-                st.success("Chat history cleared!")
-                st.experimental_rerun()
-
-# ========== TAB 4: EVALUATION ==========
-with tab4:
-    st.markdown('<div class="section-header">Performance Evaluation</div>', unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="glass-card">
-        <h3 style="color: var(--text-main); margin-bottom: 1.5rem;">📊 F1-Score Evaluation Framework</h3>
-        <p style="color: var(--text-secondary);">
-            Evaluate your last query with comprehensive F1-score analysis
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Check if user has made a query
-    user_query = st.session_state.get("last_query", None)
-    
-    if not user_query:
-        st.info("🔍 **Please use the Search or Chat features first.** Your latest query will be available here for evaluation.")
     else:
-        st.markdown(f"**🎯 Query for Evaluation:**")
-        st.markdown(f"<div style='background: var(--card-bg); padding: 1rem; border-radius: 10px; margin: 1rem 0;'><span style='color: var(--main-green); font-size: 1.1rem;'>{user_query}</span></div>", unsafe_allow_html=True)
+        if st.button("🚀 Initialize Enhanced LangChain System", type="primary", use_container_width=True):
+            if not groq_api_key:
+                st.error("❌ Please provide a Groq API key first!")
+            else:
+                with st.spinner("Initializing Enhanced LangChain + MLflow system..."):
+                    try:
+                        # Initialize the system
+                        st.session_state.rag_system = EnvironmentalRAGSystem(groq_api_key=groq_api_key)
+                        
+                        # Create progress tracking
+                        progress_container = st.container()
+                        with progress_container:
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
+                            # Process documents with real-time updates
+                            for update in st.session_state.rag_system.process_documents_realtime():
+                                progress_value = min(100, int(update.get("progress", 0)))
+                                progress_bar.progress(progress_value)
+                                status_text.info(f"**{update.get('step', 'Processing').title()}**: {update.get('status', 'In progress...')}")
+                                
+                                if update.get("step") == "error":
+                                    st.error(f"❌ {update.get('status', 'Unknown error occurred')}")
+                                    break
+                                
+                                if update.get("step") == "complete":
+                                    st.session_state.system_initialized = True
+                                    st.session_state.processing_stats = update.get("stats", {})
+                                    
+                                    progress_bar.progress(100)
+                                    status_text.success("✅ **Enhanced LangChain + MLflow System Initialized Successfully!**")
+                                    
+                                    # Display comprehensive statistics
+                                    stats = update.get("stats", {})
+                                    col_stat1, col_stat2, col_stat3, col_stat4, col_stat5 = st.columns(5)
+                                    
+                                    with col_stat1:
+                                        st.metric("📄 Documents", stats.get("documents_processed", 0))
+                                    with col_stat2:
+                                        st.metric("📝 Chunks", stats.get("total_chunks", 0))
+                                    with col_stat3:
+                                        st.metric("⏱️ Time", f"{stats.get('total_time', 0):.1f}s")
+                                    with col_stat4:
+                                        st.metric("⚡ Speed", f"{stats.get('processing_speed', 0):.1f} c/s")
+                                    with col_stat5:
+                                        st.metric("🦜 LangChain", "Active")
+                                    
+                                    # Show system capabilities
+                                    st.info("🎉 **System Ready!** Enhanced features now available:")
+                                    st.write("• 🔍 Real similarity scores from Qdrant")
+                                    st.write("• 🧠 ChatGPT-like conversational memory")
+                                    st.write("• 🌱 Enhanced environmental query detection")
+                                    st.write("• 🔬 MLflow experiment tracking with nested runs")
+                                    st.write("• 📊 Advanced analytics and evaluation")
+                                    
+                                    break
+                                
+                                # Small delay for smooth progress updates
+                                time.sleep(0.1)
+                    
+                    except Exception as e:
+                        st.error(f"❌ **System initialization failed:** {str(e)}")
+                        st.info("💡 **Troubleshooting Tips:**")
+                        st.write("• Check your Groq API key")
+                        st.write("• Ensure PDF documents are in the 'docs/' folder")
+                        st.write("• Verify your internet connection")
+
+# ==================== TAB 2: DOCUMENT SEARCH ====================
+with tab2:
+    st.markdown('<div class="section-header">Advanced Document Search with Real Similarity Scores</div>', unsafe_allow_html=True)
+    
+    if not st.session_state.system_initialized:
+        st.warning("⚠️ Please initialize the system first in the System Setup tab.")
+    else:
+        st.markdown("""
+        <div class="glass-card">
+            <h3 style="color: var(--text-main);">🔍 Enhanced Semantic Search</h3>
+            <p style="color: var(--text-secondary);">
+                Search environmental documents using LangChain retrieval with real Qdrant similarity scores and enhanced environmental query detection.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        # Show query classification
-        if smart_memory.is_memory_query(user_query):
-            st.info("🧠 **Memory Query** - This was asking about conversation history and processing previous questions")
-        elif smart_memory.is_environmental_query(user_query):
-            st.success("🌿 **Environmental Query** - Suitable for detailed evaluation")
+        # Search interface
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            search_query = st.text_input(
+                "🔍 Search Environmental Documents",
+                placeholder="What are the air quality impacts? How does deforestation affect biodiversity?",
+                help="Enter environmental questions for semantic search with real similarity scoring",
+                key=f"search_input_{st.session_state.search_counter}"
+            )
+        with col2:
+            k_results = st.slider("Results", 1, 10, 5, help="Number of similar documents to retrieve")
+        
+        col_search1, col_search2 = st.columns([2, 1])
+        with col_search1:
+            search_btn = st.button("🔍 Search with LangChain", type="primary", use_container_width=True)
+        with col_search2:
+            detect_btn = st.button("🧠 Detect Query Type", use_container_width=True)
+        
+        # Environmental query detection
+        if detect_btn and search_query:
+            rag = st.session_state.rag_system
+            is_env, category, confidence = rag.is_environmental_question(search_query)
+            display_environmental_detection(search_query, is_env, category, confidence)
+        
+        # Search execution
+        if search_btn and search_query:
+            st.session_state.search_counter += 1
+            
+            with st.spinner("🔍 Searching with Enhanced LangChain and Qdrant..."):
+                try:
+                    rag = st.session_state.rag_system
+                    
+                    # Environmental query detection
+                    is_env, category, confidence = rag.is_environmental_question(search_query)
+                    display_environmental_detection(search_query, is_env, category, confidence)
+                    
+                    if not is_env and confidence < 0.30:
+                        st.warning("⚠️ This doesn't appear to be an environmental query. Results may be limited.")
+                    
+                    # Perform search
+                    results = rag.search_environmental_reports(search_query, k_results)
+                    st.session_state.last_search_results = results
+                    
+                    # Display results with real similarity scores
+                    display_similarity_scores(results)
+                    
+                except Exception as e:
+                    st.error(f"❌ Search error: {str(e)}")
+        
+        # Display last search results if available
+        elif st.session_state.last_search_results and not search_btn:
+            st.markdown("### 📋 Last Search Results")
+            display_similarity_scores(st.session_state.last_search_results)
+
+# ==================== TAB 3: AI CHAT ====================
+with tab3:
+    st.markdown('<div class="section-header">ChatGPT-like Environmental Assistant</div>', unsafe_allow_html=True)
+    
+    if not st.session_state.system_initialized:
+        st.warning("⚠️ Please initialize the system first in the System Setup tab.")
+    else:
+        rag = st.session_state.rag_system
+        
+        # System status display
+        if rag.groq_working:
+            st.success("🦜 **Enhanced LangChain + Groq Chat Mode** - Powered by Llama3-8B with advanced conversational memory")
         else:
-            st.warning("⚠️ **Non-Environmental Query** - Limited evaluation applicable")
+            st.info("📝 **Enhanced Template Chat Mode** - Advanced environmental knowledge with conversational memory")
+        
+        st.markdown("""
+        <div class="glass-card">
+            <h3 style="color: var(--text-main);">💬 Intelligent Environmental Conversation</h3>
+            <p style="color: var(--text-secondary);">
+                Chat naturally about environmental topics. I have advanced memory capabilities like ChatGPT and can recall our entire conversation!
+            </p>
+            <div style="background: rgba(82, 183, 136, 0.1); padding: 1rem; border-radius: 8px; margin: 1rem 0;">
+                <h4 style="color: var(--main-green); margin-bottom: 0.5rem;">🧠 Advanced Memory Features:</h4>
+                <ul style="margin: 0; color: var(--text-secondary);">
+                    <li>Ask: <em>"What was my last question?"</em> - I'll recall and re-answer it</li>
+                    <li>Try: <em>"What did I ask before?"</em> - I'll show previous questions</li>
+                    <li>Say: <em>"Summarize our conversation"</em> - I'll provide a comprehensive summary</li>
+                    <li>Query: <em>"Remember when I asked about deforestation?"</em> - I'll find that conversation</li>
+                </ul>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Display advanced conversation memory
+        display_advanced_memory_interaction()
+        
+        # Chat interface
+        col1, col2 = st.columns([5, 1])
+        with col1:
+            # Use unique key for each chat input to avoid modification errors
+            chat_input = st.text_input(
+                "💬 Chat with Environmental Assistant",
+                placeholder="Ask about environmental topics or test memory: 'What was my last question?'",
+                key=f"chat_input_{st.session_state.chat_counter}"
+            )
+        with col2:
+            st.write("")
+            chat_btn = st.button("💬 Send", type="primary", use_container_width=True)
+        
+        # Quick memory test buttons
+        if rag.conversation_memory.conversations:
+            st.markdown("### 🧠 Quick Memory Tests")
+            col_mem1, col_mem2, col_mem3, col_mem4 = st.columns(4)
+            
+            with col_mem1:
+                if st.button("🔄 What was my last query?", use_container_width=True):
+                    st.session_state.chat_counter += 1
+                    quick_query = "What was my last question?"
+                    
+                    # Process the memory query
+                    search_results = rag.search_environmental_reports(quick_query, 3)
+                    response = rag.generate_smart_response(quick_query, search_results.get('chunks', []))
+                    
+                    st.markdown("### 🤖 Memory Response")
+                    st.write(response)
+            
+            with col_mem2:
+                if st.button("📝 Previous question?", use_container_width=True):
+                    st.session_state.chat_counter += 1
+                    quick_query = "What did I ask before?"
+                    
+                    search_results = rag.search_environmental_reports(quick_query, 3)
+                    response = rag.generate_smart_response(quick_query, search_results.get('chunks', []))
+                    
+                    st.markdown("### 🤖 Memory Response")
+                    st.write(response)
+            
+            with col_mem3:
+                if st.button("📜 Summarize conversation", use_container_width=True):
+                    st.session_state.chat_counter += 1
+                    quick_query = "Summarize our conversation"
+                    
+                    search_results = rag.search_environmental_reports(quick_query, 3)
+                    response = rag.generate_smart_response(quick_query, search_results.get('chunks', []))
+                    
+                    st.markdown("### 🤖 Conversation Summary")
+                    st.write(response)
+            
+            with col_mem4:
+                if st.button("🗑️ Clear History", use_container_width=True):
+                    rag.conversation_memory.clear_memory()
+                    if rag.memory:
+                        rag.memory.clear()
+                    st.success("🧹 All conversation history and memory cleared!")
+                    st.rerun()
+        
+        # Process chat input
+        if chat_btn and chat_input:
+            st.session_state.chat_counter += 1
+            
+            with st.spinner("🤔 Processing with advanced LangChain capabilities..."):
+                try:
+                    # Environmental query detection
+                    is_env, category, confidence = rag.is_environmental_question(chat_input)
+                    
+                    # Search for relevant documents
+                    search_results = rag.search_environmental_reports(chat_input, 3)
+                    
+                    # Generate response with advanced memory
+                    response = rag.generate_smart_response(chat_input, search_results.get('chunks', []))
+                    
+                    # Display the conversation
+                    st.markdown("### 🤖 Assistant Response")
+                    
+                    # Show environmental detection
+                    display_environmental_detection(chat_input, is_env, category, confidence)
+                    
+                    # Display conversation
+                    st.markdown(f"""
+                    <div class="chat-message">
+                        <strong>🧑 You:</strong> {chat_input}
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown(f"""
+                    <div class="chat-message">
+                        <strong>🤖 Assistant:</strong> {response}
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Show source documents if relevant
+                    if search_results.get("chunks") and is_env:
+                        with st.expander("📚 Source Documents Used", expanded=False):
+                            for i, (chunk, score, meta) in enumerate(zip(
+                                search_results['chunks'][:2], 
+                                search_results['scores'][:2], 
+                                search_results['metadata'][:2]
+                            )):
+                                st.markdown(f"**📄 Source {i+1} (Score: {score:.3f}):** {meta.get('topic', 'Unknown')}")
+                                st.write(chunk[:200] + "...")
+                    
+                except Exception as e:
+                    st.error(f"❌ Chat error: {str(e)}")
+
+# ==================== TAB 4: EVALUATION ====================
+with tab4:
+    st.markdown('<div class="section-header">Advanced Performance Evaluation</div>', unsafe_allow_html=True)
+    
+    if not st.session_state.rag_system or not st.session_state.rag_system.conversation_memory.conversations:
+        st.info("💬 Start a conversation in the AI Chat tab to evaluate responses here.")
+    else:
+        st.markdown("""
+        <div class="glass-card">
+            <h3 style="color: var(--text-main);">📊 LangChain Response Quality Assessment</h3>
+            <p style="color: var(--text-secondary);">
+                Comprehensive evaluation of response quality with MLflow tracking and environmental domain metrics.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        rag = st.session_state.rag_system
+        conversations = rag.conversation_memory.conversations
+        
+        # Select conversation for evaluation
+        conv_options = [f"Turn {conv['turn_number']}: {conv['user_input'][:50]}..." for conv in conversations]
+        selected_idx = st.selectbox(
+            "🎯 Select Conversation to Evaluate",
+            range(len(conversations)),
+            format_func=lambda x: conv_options[x],
+            index=len(conversations)-1
+        )
+        
+        selected_conv = conversations[selected_idx]
+        
+        # Display selected conversation
+        col_eval1, col_eval2 = st.columns(2)
+        
+        with col_eval1:
+            st.markdown("### 🧑 User Query")
+            st.text_area("Query", selected_conv['user_input'], height=100, disabled=True, key="eval_query")
+            
+            # Show detection info
+            context_info = selected_conv.get('context_info', {})
+            if context_info:
+                is_env = context_info.get('is_environmental', True)
+                category = context_info.get('category', 'unknown')
+                confidence = context_info.get('confidence', 0.0)
+                st.info(f"🔍 Environmental: {is_env} | Category: {category} | Confidence: {confidence:.3f}")
+        
+        with col_eval2:
+            st.markdown("### 🤖 Assistant Response")
+            st.text_area("Response", selected_conv['assistant_response'], height=100, disabled=True, key="eval_response")
         
         # Reference answer input
-        reference = st.text_area(
-            "📝 **Reference/Expected Answer** (Required for F1-score):",
-            placeholder="Enter the expected answer for this query to calculate F1-score accuracy...",
-            height=150,
-            help="Provide the ground truth answer to calculate F1-score"
+        st.markdown("### 📝 Reference Answer for Comparison")
+        reference_answer = st.text_area(
+            "Enter the expected/ideal answer for F1-score calculation:",
+            placeholder="Provide the ideal answer to compare against the AI response...",
+            height=120,
+            key="reference_input"
         )
         
-        # Evaluation button
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            eval_button = st.button("📊 Evaluate Query & Calculate F1-Score", type="primary", use_container_width=True)
+        # Evaluation controls
+        col_eval_btn1, col_eval_btn2, col_eval_btn3 = st.columns(3)
         
-        if eval_button:
-            if not reference.strip():
-                st.error("❌ **Reference answer is required for F1-score calculation!**")
-            else:
-                with st.spinner("Evaluating query with ChatGPT-like memory context..."):
-                    try:
-                        # Get the stored response
-                        response = st.session_state.get("last_response", "No response available")
-                        search_results = st.session_state.get("last_search_results", {})
-                        
-                        # Calculate F1 Score
-                        f1_score = calculate_f1_score_builtin(response, reference)
-                        
-                        # Display results
-                        st.success("✅ **Evaluation Complete!**")
-                        
-                        # Metrics display
-                        col_eval1, col_eval2, col_eval3, col_eval4 = st.columns(4)
-                        with col_eval1:
-                            st.metric("🎯 F1-Score", f"{f1_score:.3f}")
-                        with col_eval2:
-                            st.metric("📄 Sources", len(search_results.get("chunks", [])))
-                        with col_eval3:
-                            st.metric("⚡ Retrieval", f"{search_results.get('retrieval_time', 0):.3f}s")
-                        with col_eval4:
-                            performance = "Excellent" if f1_score >= 0.7 else "Good" if f1_score >= 0.5 else "Fair" if f1_score >= 0.3 else "Poor"
-                            st.metric("📊 Rating", performance)
-                        
-                        # Performance Analysis
-                        if f1_score >= 0.7:
-                            st.success(f"🎉 **Excellent Performance!** F1-Score: {f1_score:.3f} (≥ 0.7)")
-                        elif f1_score >= 0.5:
-                            st.info(f"👍 **Good Performance!** F1-Score: {f1_score:.3f} (≥ 0.5)")
-                        elif f1_score >= 0.3:
-                            st.warning(f"⚠️ **Fair Performance.** F1-Score: {f1_score:.3f} (≥ 0.3)")
+        with col_eval_btn1:
+            if st.button("📊 Evaluate Response", type="primary", use_container_width=True):
+                if reference_answer.strip():
+                    response = selected_conv['assistant_response']
+                    
+                    # Calculate F1 score with MLflow logging
+                    f1_score = rag.calculate_f1_score(response, reference_answer)
+                    
+                    st.success("✅ **Evaluation Complete with MLflow Logging!**")
+                    
+                    # Display comprehensive metrics
+                    col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
+                    
+                    with col_metric1:
+                        st.metric("📊 F1-Score", f"{f1_score:.4f}")
+                    with col_metric2:
+                        response_words = len(response.split())
+                        st.metric("📝 Response Length", f"{response_words} words")
+                    with col_metric3:
+                        reference_words = len(reference_answer.split())
+                        st.metric("🎯 Reference Length", f"{reference_words} words")
+                    with col_metric4:
+                        if f1_score >= 0.8:
+                            rating = "🌟 Excellent"
+                        elif f1_score >= 0.6:
+                            rating = "👍 Good"
+                        elif f1_score >= 0.4:
+                            rating = "📝 Fair"
                         else:
-                            st.error(f"❌ **Needs Improvement.** F1-Score: {f1_score:.3f} (< 0.3)")
-                        
-                        # Display AI Response
-                        st.markdown("### 🤖 AI Response")
-                        st.markdown(f"<div style='background: var(--card-bg); padding: 1.5rem; border-radius: 12px; margin: 1rem 0;'>{response}</div>", unsafe_allow_html=True)
-                        
-                        # Display Reference Answer
-                        st.markdown("### 📝 Reference Answer")
-                        st.markdown(f"<div style='background: var(--card-bg); padding: 1.5rem; border-radius: 12px; margin: 1rem 0;'>{reference}</div>", unsafe_allow_html=True)
-                        
-                        # Source Documents (only if available)
-                        if search_results.get("chunks"):
-                            st.markdown("### 📚 Source Documents Used")
-                            for i, (chunk, meta) in enumerate(zip(search_results["chunks"], search_results["metadata"])):
-                                with st.expander(f"📄 Source {i+1}: {meta.get('topic', 'Unknown')}"):
-                                    st.markdown(f"**Document:** {meta.get('document', 'Unknown')}")
-                                    st.write(chunk[:500] + "..." if len(chunk) > 500 else chunk)
-                        
-                    except Exception as e:
-                        st.error(f"❌ **Evaluation failed:** {str(e)}")
-
-# ========== TAB 5: ANALYTICS ==========
-with tab5:
-    st.markdown('<div class="section-header">System Analytics</div>', unsafe_allow_html=True)
-    
-    # ChatGPT-like Memory Analytics
-    memory = st.session_state.get('conversation_memory', [])
-    if memory:
-        st.markdown("### 💬 ChatGPT-like Conversation Analytics")
-        
-        env_conversations = [conv for conv in memory if conv['is_environmental']]
-        memory_queries = [conv for conv in memory if conv['is_memory_query']]
-        non_env_conversations = [conv for conv in memory if not conv['is_environmental']]
-        
-        col_conv1, col_conv2, col_conv3, col_conv4, col_conv5 = st.columns(5)
-        with col_conv1:
-            st.metric("💬 Total Conversations", len(memory))
-        with col_conv2:
-            st.metric("🌿 Environmental", len(env_conversations))
-        with col_conv3:
-            st.metric("🧠 Memory Queries", len(memory_queries))
-        with col_conv4:
-            st.metric("❌ Non-Environmental", len(non_env_conversations))
-        with col_conv5:
-            accuracy = (len(env_conversations) / len(memory) * 100) if memory else 0
-            st.metric("🎯 Env. Rate", f"{accuracy:.1f}%")
-        
-        # Memory effectiveness chart
-        if len(memory) > 1:
-            df_conv = pd.DataFrame([
-                {
-                    'Time': conv['timestamp'].strftime('%H:%M'),
-                    'Type': 'Memory Query' if conv['is_memory_query'] else ('Environmental' if conv['is_environmental'] else 'Non-Environmental'),
-                    'Query_Length': len(conv['query'])
-                } for conv in memory
-            ])
-            
-            fig_timeline = px.bar(
-                df_conv, x='Time', y='Query_Length', color='Type',
-                title='ChatGPT-like Conversation Timeline',
-                color_discrete_map={
-                    'Environmental': '#52B788', 
-                    'Memory Query': '#40916C',
-                    'Non-Environmental': '#F59E0B'
-                }
-            )
-            fig_timeline.update_layout(
-                plot_bgcolor='rgba(255,255,255,0.1)',
-                paper_bgcolor='rgba(255,255,255,0.1)',
-                font=dict(color='#1B4332')
-            )
-            st.plotly_chart(fig_timeline, use_container_width=True)
-    
-    # System Performance Analytics
-    if hasattr(env_rag, 'processing_stats') and env_rag.processing_stats:
-        stats = env_rag.processing_stats
-        
-        st.markdown("### ⚡ System Performance Metrics")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("📄 Documents", stats.get('documents_processed', 0))
-        with col2:
-            st.metric("📝 Chunks", stats.get('total_chunks', 0))
-        with col3:
-            st.metric("⚡ Speed", f"{stats.get('processing_speed', 0):.1f}/s")
-        with col4:
-            mode = "AI Enhanced" if env_rag.groq_working else "Template"
-            st.metric("🤖 Mode", mode)
-        
-        # Content Distribution Chart (if available)
-        if hasattr(env_rag, 'chunk_metadata') and env_rag.chunk_metadata:
-            st.markdown("### 📊 Environmental Content Distribution")
-            
-            doc_distribution = {}
-            for metadata in env_rag.chunk_metadata:
-                topic = metadata.get('topic', 'Unknown')
-                doc_distribution[topic] = doc_distribution.get(topic, 0) + 1
-            
-            if doc_distribution:
-                df_dist = pd.DataFrame(list(doc_distribution.items()), columns=['Topic', 'Chunks'])
+                            rating = "🔧 Needs Work"
+                        st.metric("⭐ Quality Rating", rating)
+                    
+                    # Performance feedback
+                    if f1_score >= 0.8:
+                        st.success(f"🎉 **Outstanding Performance!** F1-Score: {f1_score:.4f} - Response quality is excellent.")
+                    elif f1_score >= 0.6:
+                        st.info(f"👍 **Good Performance!** F1-Score: {f1_score:.4f} - Response quality is solid.")
+                    elif f1_score >= 0.4:
+                        st.warning(f"📝 **Fair Performance.** F1-Score: {f1_score:.4f} - Response has room for improvement.")
+                    else:
+                        st.error(f"🔧 **Needs Improvement.** F1-Score: {f1_score:.4f} - Consider refining the system.")
+                    
+                    # Detailed comparison
+                    st.markdown("### 🔍 Detailed Comparison")
+                    col_comp1, col_comp2 = st.columns(2)
+                    
+                    with col_comp1:
+                        st.markdown("**🤖 AI Response Analysis**")
+                        st.write(f"Word count: {len(response.split())}")
+                        st.write(f"Character count: {len(response)}")
+                        st.text_area("Full Response", response, height=150, disabled=True, key="full_response")
+                    
+                    with col_comp2:
+                        st.markdown("**📝 Reference Answer Analysis**")
+                        st.write(f"Word count: {len(reference_answer.split())}")
+                        st.write(f"Character count: {len(reference_answer)}")
+                        st.text_area("Reference Answer", reference_answer, height=150, disabled=True, key="full_reference")
                 
-                fig_dist = px.pie(
-                    df_dist, 
-                    values='Chunks', 
-                    names='Topic',
-                    title='Environmental Topic Distribution',
-                    color_discrete_sequence=[
-                        '#D8F3DC', '#B7E4C7', '#95D5B2', '#74C69D', 
-                        '#52B788', '#40916C', '#2D6A4F', '#1B4332'
-                    ]
-                )
-                fig_dist.update_traces(textposition='inside', textinfo='percent+label')
-                fig_dist.update_layout(
-                    plot_bgcolor='rgba(255,255,255,0.1)',
-                    paper_bgcolor='rgba(255,255,255,0.1)',
-                    font=dict(color='#1B4332'),
-                    height=400
-                )
-                st.plotly_chart(fig_dist, use_container_width=True)
+                else:
+                    st.error("❌ Please provide a reference answer for evaluation.")
         
-        # System Health
-        st.markdown("### 🏥 System Health")
-        col_health1, col_health2, col_health3 = st.columns(3)
+        with col_eval_btn2:
+            if st.button("🔍 Show Search Context", use_container_width=True):
+                # Reconstruct search for this conversation
+                search_results = rag.search_environmental_reports(selected_conv['user_input'], 3)
+                st.markdown("### 📋 Search Results for This Query")
+                display_similarity_scores(search_results)
+        
+        with col_eval_btn3:
+            if st.button("📈 View MLflow Data", use_container_width=True):
+                if rag and hasattr(rag, 'base_run_id'):
+                    run_id = rag.base_run_id
+                    st.info(f"🔬 **MLflow Run ID:** {run_id}")
+                    st.code("""
+# To view in MLflow UI:
+mlflow ui
+
+# Then open: http://localhost:5000
+                    """)
+                else:
+                    st.warning("MLflow tracking not available.")
+
+# ==================== TAB 5: ANALYTICS ====================
+with tab5:
+    st.markdown('<div class="section-header">Comprehensive System Analytics</div>', unsafe_allow_html=True)
+    
+    if st.session_state.system_initialized:
+        rag = st.session_state.rag_system
+        
+        # System health overview
+        st.markdown("### 🏥 System Health Dashboard")
+        col_health1, col_health2, col_health3, col_health4, col_health5 = st.columns(5)
+        
         with col_health1:
-            st.metric("🔄 Vector DB", "Operational" if hasattr(env_rag, 'chunks') and env_rag.chunks else "Not Ready")
+            status = "🟢 Ready" if rag else "🔴 Not Ready"
+            st.metric("🦜 LangChain", status)
+        
         with col_health2:
-            st.metric("🧠 Embeddings", "Ready" if hasattr(env_rag, 'embeddings') else "Not Ready")
+            llm_status = "🟢 Connected" if rag.groq_working else "🟡 Fallback"
+            st.metric("🤖 Groq LLM", llm_status)
+        
         with col_health3:
-            api_status = "Connected" if env_rag.groq_working else "Fallback Mode"
-            st.metric("🔗 API Status", api_status)
+            vector_status = "🟢 Active" if hasattr(rag, 'vector_store') and rag.vector_store else "🔴 Inactive"
+            st.metric("🗄️ Vector Store", vector_status)
+        
+        with col_health4:
+            memory_status = "🟢 Active" if hasattr(rag, 'conversation_memory') and rag.conversation_memory else "🔴 Inactive"
+            st.metric("🧠 Memory", memory_status)
+        
+        with col_health5:
+            mlflow_status = "🟢 Tracking" if hasattr(rag, 'base_run_id') and rag.base_run_id else "🔴 Inactive"
+            st.metric("🔬 MLflow", mlflow_status)
+        
+        # Processing statistics
+        if st.session_state.processing_stats:
+            stats = st.session_state.processing_stats
+            
+            st.markdown("### ⚡ Processing Performance")
+            col_perf1, col_perf2, col_perf3, col_perf4, col_perf5 = st.columns(5)
+            
+            with col_perf1:
+                st.metric("📄 Documents", stats.get('documents_processed', 0))
+            with col_perf2:
+                st.metric("📝 Chunks", stats.get('total_chunks', 0))
+            with col_perf3:
+                st.metric("⏱️ Processing Time", f"{stats.get('total_time', 0):.2f}s")
+            with col_perf4:
+                st.metric("⚡ Speed", f"{stats.get('processing_speed', 0):.1f} chunks/s")
+            with col_perf5:
+                avg_chunk_length = stats.get('avg_chunk_length', 0)
+                st.metric("📏 Avg Chunk Length", f"{avg_chunk_length:.0f} chars")
+        
+        # Advanced conversation analytics
+        if rag.conversation_memory.conversations:
+            conversations = rag.conversation_memory.conversations
+            
+            st.markdown("### 📊 Advanced Conversation Analytics")
+            
+            conv_data = []
+            for conv in conversations:
+                context_info = conv.get('context_info', {})
+                conv_data.append({
+                    'turn_number': conv['turn_number'],
+                    'question_length': len(conv['user_input'].split()),
+                    'answer_length': len(conv['assistant_response'].split()),
+                    'is_environmental': context_info.get('is_environmental', True),
+                    'category': context_info.get('category', 'unknown'),
+                    'confidence': context_info.get('confidence', 0.0),
+                    'timestamp': conv['timestamp'],
+                    'source': context_info.get('source', 'unknown')
+                })
+            
+            df = pd.DataFrame(conv_data)
+            
+            # Conversation metrics
+            col_conv1, col_conv2, col_conv3, col_conv4 = st.columns(4)
+            
+            with col_conv1:
+                st.metric("💬 Total Conversations", len(conversations))
+            with col_conv2:
+                avg_answer_length = df['answer_length'].mean() if not df.empty else 0
+                st.metric("📝 Avg Response", f"{avg_answer_length:.1f} words")
+            with col_conv3:
+                env_percentage = (df['is_environmental'].sum() / len(df) * 100) if not df.empty else 0
+                st.metric("🌱 Environmental %", f"{env_percentage:.1f}%")
+            with col_conv4:
+                avg_confidence = df['confidence'].mean() if not df.empty else 0
+                st.metric("🎯 Avg Confidence", f"{avg_confidence:.2f}")
+            
+            # Visualizations
+            if len(df) > 1:
+                col_viz1, col_viz2 = st.columns(2)
+                
+                with col_viz1:
+                    # Response length over time
+                    fig_length = px.line(
+                        df, 
+                        x='turn_number', 
+                        y='answer_length',
+                        title="Response Length Over Conversation Turns",
+                        labels={"turn_number": "Conversation Turn", "answer_length": "Words in Response"}
+                    )
+                    fig_length.update_traces(line_color='#52B788', line_width=3)
+                    fig_length.update_layout(
+                        plot_bgcolor='rgba(255,255,255,0.1)',
+                        paper_bgcolor='rgba(255,255,255,0.1)',
+                        font=dict(color='#1B4332')
+                    )
+                    st.plotly_chart(fig_length, use_container_width=True)
+                
+                with col_viz2:
+                    # Environmental category distribution
+                    if 'category' in df.columns:
+                        category_counts = df['category'].value_counts()
+                        if not category_counts.empty:
+                            fig_categories = px.pie(
+                                values=category_counts.values,
+                                names=category_counts.index,
+                                title="Environmental Categories Distribution"
+                            )
+                            fig_categories.update_traces(
+                                textposition='inside', 
+                                textinfo='percent+label',
+                                marker=dict(colors=px.colors.qualitative.Set3)
+                            )
+                            fig_categories.update_layout(
+                                plot_bgcolor='rgba(255,255,255,0.1)',
+                                paper_bgcolor='rgba(255,255,255,0.1)',
+                                font=dict(color='#1B4332')
+                            )
+                            st.plotly_chart(fig_categories, use_container_width=True)
+            
+            # Detailed conversation table
+            if st.checkbox("📋 Show Detailed Conversation Log"):
+                st.dataframe(
+                    df[['turn_number', 'question_length', 'answer_length', 'is_environmental', 'category', 'confidence', 'source']],
+                    use_container_width=True
+                )
+        
+        # MLflow integration info
+        if hasattr(rag, 'base_run_id') and rag.base_run_id:
+            st.markdown("### 🔬 MLflow Experiment Tracking")
+            
+            col_ml1, col_ml2 = st.columns(2)
+            
+            with col_ml1:
+                st.info(f"**🆔 Current Run ID:** `{rag.base_run_id}`")
+                st.info(f"**🧪 Experiment:** Environmental_RAG_System")
+                st.info(f"**📊 Tracking URI:** file:./mlruns")
+            
+            with col_ml2:
+                st.markdown("**🔬 MLflow UI Commands:**")
+                st.code("""
+# Start MLflow UI
+mlflow ui
+
+# Open in browser
+http://localhost:5000
+
+# View experiments
+mlflow experiments list
+                """)
+        
+        # System capabilities summary
+        st.markdown("### 🎯 Enhanced System Capabilities")
+        
+        capabilities = [
+            ("🦜 LangChain Integration", "Full framework integration with ConversationalRetrievalChain and advanced memory"),
+            ("🔍 Real Similarity Scores", "Direct Qdrant client integration for accurate similarity scoring"),
+            ("🧠 ChatGPT-like Memory", "Advanced conversation recall and context awareness like ChatGPT/Gemini"),
+            ("🌱 Enhanced Environmental Detection", "Improved query classification with confidence scoring and knowledge base"),
+            ("🔬 MLflow Tracking", "Comprehensive experiment logging with nested runs to avoid parameter conflicts"),
+            ("📊 Performance Analytics", "Real-time system and conversation analytics with visualizations"),
+            ("🎯 Quality Evaluation", "F1-score based response quality assessment with detailed metrics"),
+            ("💬 Natural Conversation", "Human-like environmental domain expertise with persistent memory")
+        ]
+        
+        for capability, description in capabilities:
+            st.markdown(f"**{capability}:** {description}")
     
     else:
         st.markdown("""
         <div class="glass-card">
             <div style="text-align: center; padding: 3rem;">
-                <h3 style="color: var(--text-secondary); margin-bottom: 1.5rem;">📊 Analytics Pending</h3>
-                <p style="color: var(--text-secondary); font-size: 1.1rem;">
-                    Initialize the system and have some conversations to view comprehensive analytics
+                <h3 style="color: var(--text-secondary);">📊 Analytics Dashboard</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+                    Initialize the Enhanced LangChain + MLflow system to access comprehensive analytics
                 </p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-top: 2rem;">
+                    <div style="padding: 1rem; border: 2px dashed var(--mid-green); border-radius: 10px;">
+                        <h4 style="color: var(--main-green);">🏥 System Health</h4>
+                        <p style="margin: 0; color: var(--text-secondary);">Component status monitoring</p>
+                    </div>
+                    <div style="padding: 1rem; border: 2px dashed var(--mid-green); border-radius: 10px;">
+                        <h4 style="color: var(--main-green);">📊 Performance Metrics</h4>
+                        <p style="margin: 0; color: var(--text-secondary);">Processing and response analytics</p>
+                    </div>
+                    <div style="padding: 1rem; border: 2px dashed var(--mid-green); border-radius: 10px;">
+                        <h4 style="color: var(--main-green);">💬 Conversation Analysis</h4>
+                        <p style="margin: 0; color: var(--text-secondary);">Memory and interaction patterns</p>
+                    </div>
+                    <div style="padding: 1rem; border: 2px dashed var(--mid-green); border-radius: 10px;">
+                        <h4 style="color: var(--main-green);">🔬 MLflow Integration</h4>
+                        <p style="margin: 0; color: var(--text-secondary);">Experiment tracking and logging</p>
+                    </div>
+                </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-# Footer
+# ----------------- FOOTER -----------------
 st.markdown("""
-<div class="glass-footer">
-    <h2 style="margin-bottom: 1.5rem; font-weight: 700;">🌿 Environmental Intelligence Platform</h2>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin: 2rem 0;">
-        <div style="text-align: center;">
-            <h4 style="color: #B7E4C7; margin-bottom: 0.5rem;">🧠 ChatGPT-like</h4>
-            <p style="margin: 0; opacity: 0.9;">Human-like conversational memory</p>
+<div style="background: var(--dark-green); color: white; padding: 2rem 1rem; border-radius: 1.5rem; margin: 2rem 0; text-align: center;">
+    <h2 style="margin-bottom: 1.5rem;">🌿 Enhanced Environmental Intelligence Platform</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem;">
+        <div>
+            <h4 style="color: #B7E4C7;">🦜 LangChain Powered</h4>
+            <p style="margin: 0; opacity: 0.9;">ConversationalRetrievalChain with advanced memory</p>
         </div>
-        <div style="text-align: center;">
-            <h4 style="color: #B7E4C7; margin-bottom: 0.5rem;">🎯 Smart Processing</h4>
-            <p style="margin: 0; opacity: 0.9;">Remembers & re-answers questions</p>
+        <div>
+            <h4 style="color: #B7E4C7;">🔬 MLflow Tracking</h4>
+            <p style="margin: 0; opacity: 0.9;">Real-time experiment monitoring with nested runs</p>
         </div>
-        <div style="text-align: center;">
-            <h4 style="color: #B7E4C7; margin-bottom: 0.5rem;">🔒 Enterprise</h4>
-            <p style="margin: 0; opacity: 0.9;">Production-ready deployment</p>
+        <div>
+            <h4 style="color: #B7E4C7;">🧠 ChatGPT-like Memory</h4>
+            <p style="margin: 0; opacity: 0.9;">Advanced conversation recall and context awareness</p>
         </div>
-        <div style="text-align: center;">
-            <h4 style="color: #B7E4C7; margin-bottom: 0.5rem;">♻️ Sustainable</h4>
-            <p style="margin: 0; opacity: 0.9;">Eco-friendly AI processing</p>
+        <div>
+            <h4 style="color: #B7E4C7;">🎯 Real Similarity Scores</h4>
+            <p style="margin: 0; opacity: 0.9;">Accurate Qdrant vector matching with visualization</p>
+        </div>
+        <div>
+            <h4 style="color: #B7E4C7;">🌱 Enhanced Detection</h4>
+            <p style="margin: 0; opacity: 0.9;">Improved environmental query classification</p>
         </div>
     </div>
     <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.2);">
-        <p style="margin: 0; opacity: 0.95; font-size: 1.1rem;">
-            Developed by <strong style="color: #95D5B2;">Shakeel Rifath</strong> • ChatGPT-like Environmental Intelligence
+        <p style="margin: 0; font-size: 1.1rem;">
+            Developed by <strong style="color: #95D5B2;">Shakeel Rifath</strong> • Enhanced LangChain + MLflow Environmental Intelligence Platform
         </p>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# Enhanced Sidebar
+# ----------------- ENHANCED SIDEBAR -----------------
 st.sidebar.markdown("""
 <div style="background: var(--card-bg); padding: 1.5rem; border-radius: 1rem; margin: 1rem 0; box-shadow: var(--shadow);">
-    <h3 style="color: var(--dark-green); margin-bottom: 1rem;">🧠 ChatGPT-like Environmental RAG</h3>
+    <h3 style="color: var(--dark-green);">🦜 Enhanced LangChain RAG</h3>
+    <p style="color: var(--text-secondary); margin: 0; font-size: 0.9rem;">
+        Advanced environmental intelligence with ChatGPT-like capabilities and MLflow tracking
+    </p>
 </div>
 """, unsafe_allow_html=True)
 
-memory_count = len(st.session_state.get('conversation_memory', []))
-env_count = len([c for c in st.session_state.get('conversation_memory', []) if c['is_environmental']])
-memory_q_count = len([c for c in st.session_state.get('conversation_memory', []) if c['is_memory_query']])
-
-st.sidebar.info(f"""
-**ChatGPT-like Environmental RAG**  
-━━━━━━━━━━━━━━━━━━━━━━━  
-**👨‍🎓 Developer:** Shakeel Rifath  
-**📚 Dataset:** Environmental Reports  
-**💬 Conversations:** {memory_count} stored  
-**🌿 Environmental:** {env_count} queries  
-**🧠 Memory Queries:** {memory_q_count} processed  
-**🗄️ Vector DB:** Qdrant (Cosine)  
-**🤖 AI Model:** Groq Llama-3.1-8b  
-**💭 Memory:** ChatGPT-like recall  
-**📊 Evaluation:** F1-Score Framework  
-**🏆 Status:** Production Ready  
-""")
-
-st.sidebar.markdown("## 🚀 System Status")
-if hasattr(env_rag, 'documents') and env_rag.documents:
-    st.sidebar.success("✅ System Operational")
-    st.sidebar.metric("📁 Documents", len(env_rag.documents))
-    if hasattr(env_rag, 'chunks') and env_rag.chunks:
-        st.sidebar.metric("📝 Chunks", len(env_rag.chunks))
+# System status in sidebar
+if st.session_state.system_initialized:
+    st.sidebar.success("✅ Enhanced System Ready")
     
-    if env_rag.groq_working:
-        st.sidebar.success("🚀 AI Enhanced")
-    else:
-        st.sidebar.info("📝 Template Mode")
-else:
-    st.sidebar.warning("⚠️ Initialize System")
+    # Quick stats
+    if st.session_state.rag_system:
+        status = st.session_state.rag_system.get_system_status()
+        
+        st.sidebar.metric("📄 Documents", status['documents_loaded'])
+        st.sidebar.metric("📝 Chunks", status['chunks_created'])
+        st.sidebar.metric("🧠 LangChain Memory", status['memory_messages'])
+        st.sidebar.metric("💬 Conversation Memory", status['conversation_memory_turns'])
+    
+    # Last conversation info
+    if st.session_state.rag_system.conversation_memory.conversations:
+        conversations = st.session_state.rag_system.conversation_memory.conversations
+        last_conv = conversations[-1]
+        
+        st.sidebar.info(f"**Last Query:** {last_conv['user_input'][:40]}...")
+        
+        # Environmental detection for last query
+        context_info = last_conv.get('context_info', {})
+        if context_info:
+            env_status = "🌱 Environmental" if context_info.get('is_environmental') else "❌ Non-Environmental"
+            st.sidebar.write(f"**Detection:** {env_status}")
+            st.sidebar.write(f"**Category:** {context_info.get('category', 'unknown')}")
+            st.sidebar.write(f"**Confidence:** {context_info.get('confidence', 0):.2f}")
 
-# ChatGPT-like Memory Status
-st.sidebar.markdown("## 🧠 ChatGPT-like Memory")
-if memory_count > 0:
-    st.sidebar.success(f"💬 {memory_count} conversations")
-    st.sidebar.info(f"🧠 {memory_q_count} memory recalls")
-    recent_query = smart_memory.get_last_environmental_query()
-    if recent_query:
-        st.sidebar.info(f"Last: {recent_query[:25]}...")
 else:
-    st.sidebar.info("💬 No conversations yet")
+    st.sidebar.warning("⚠️ System Not Initialized")
+    st.sidebar.info("👈 Use System Setup tab to initialize")
 
-st.sidebar.markdown("## 🔧 Tech Stack")
+# Enhanced tech stack info
+st.sidebar.markdown("## 🛠️ Enhanced Tech Stack")
 st.sidebar.code("""
-Embeddings: BGE-base-en-v1.5
-Vector DB: Qdrant (Cosine)
-Memory: ChatGPT-like recall
-AI Model: Llama-3.1-8b-instant
-Processing: Previous query re-answering
-Scope: Environmental filtering
-Metrics: F1-Score Analytics
+🦜 LangChain: 0.1.17
+🤖 LLM: ChatGroq (Llama3-8B)
+🧠 Memory: Enhanced ConversationMemory
+🔗 Chain: ConversationalRetrievalChain
+🗄️ Vector: QdrantVectorStore
+📊 Embeddings: BGE-base-en-v1.5
+🔬 Tracking: MLflow 2.10.2 (Nested Runs)
+📝 Splitter: RecursiveCharacter
+🎯 Scores: Real Qdrant similarity
+💬 Memory: ChatGPT-like conversation
 """)
 
-# Memory Usage Example
-st.sidebar.markdown("## 💡 Memory Examples")
+# Enhanced memory examples
+st.sidebar.markdown("## 💡 Advanced Memory Examples")
 st.sidebar.markdown("""
-**Try this flow:**  
-1. Ask: *"What is soil erosion?"*  
-2. Later ask: *"What was my last query?"*  
-3. I'll show and re-answer it!
+**🧠 Try these enhanced memory tests:**
 
-**More examples:**  
-• *"What did I ask before?"*  
-• *"Previous question?"*  
-• *"Remember my last query?"*
+1. **Basic Memory:**
+   - Ask: *"What is deforestation?"*
+   - Then: *"What was my last query?"*
+
+2. **Conversation Recall:**
+   - Ask: *"What did I ask before?"*
+   - Try: *"Previous question?"*
+
+3. **Advanced Memory:**
+   - Say: *"Summarize our conversation"*
+   - Ask: *"What topics have we discussed?"*
+
+**🌱 Environmental Topics:**
+- Air quality and pollution control
+- Climate change and greenhouse gases
+- Biodiversity and ecosystem services
+- Renewable energy technologies
+- Soil conservation and remediation
+- Water resources and quality management
+- Waste management and recycling
+- Sustainable development practices
 """)
-#final
+
+# Enhanced key features
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🎯 Enhanced Features")
+st.sidebar.markdown("""
+✅ **Advanced LangChain Integration**  
+✅ **Real Qdrant Similarity Scores**  
+✅ **ChatGPT-like Memory System**  
+✅ **Enhanced Environmental Detection**  
+✅ **MLflow Nested Run Tracking**  
+✅ **Advanced Conversation Analytics**  
+✅ **F1-Score Quality Evaluation**  
+✅ **Production-Ready Architecture**  
+✅ **Memory Search and Recall**  
+✅ **Environmental Knowledge Base**  
+""")
+
+# Session info
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📊 Session Info")
+st.sidebar.write(f"**Session ID:** {st.session_state.session_id[:8]}...")
+st.sidebar.write(f"**Started:** {datetime.now().strftime('%H:%M:%S')}")
+
+if st.session_state.system_initialized and hasattr(st.session_state.rag_system, 'base_run_id'):
+    st.sidebar.write(f"**MLflow Run:** {st.session_state.rag_system.base_run_id[:8]}...")
+# good#
